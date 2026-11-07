@@ -4,6 +4,7 @@
   import { totalCps, fansPerSec } from '$lib/engine/formulas';
   import { BOOST_LABEL } from '$lib/engine/data';
   import { fmtTime } from '$lib/engine/format';
+  import { has } from '$lib/engine/progression';
 
   const s = $derived(game.s);
   const cps = $derived(totalCps(s, game.now));
@@ -16,12 +17,14 @@
     <div class="cash display num">💵 {fmt(s.cash)}</div>
     <div class="rate small muted num">+{fmt(cps)}/s</div>
   </div>
-  <div class="cur">
-    <span class="pill num" title="Fans">📣 {fmt(s.fans)} <span class="muted">+{fmt(fps)}/s</span></span>
-    <span class="pill num" title="Trophies">🏆 {fmt(s.trophies)}</span>
-    <span class="pill num" title="Scout Tokens">🎟️ {fmt(s.tokens)}</span>
-    {#if s.legacy > 0 || s.ascensions > 0}<span class="pill num" title="Legacy Points">🎖️ {fmt(s.legacy)}</span>{/if}
-  </div>
+  {#if has(s, 'office')}
+    <div class="cur">
+      <span class="pill num" title="Fans">📣 {fmt(s.fans)} <span class="muted">+{fmt(fps)}/s</span></span>
+      {#if has(s, 'playoffs')}<span class="pill num" title="Trophies">🏆 {fmt(s.trophies)}</span>{/if}
+      {#if has(s, 'scouting')}<span class="pill num" title="Scout Tokens">🎟️ {fmt(s.tokens)}</span>{/if}
+      {#if has(s, 'legacy') && (s.legacy > 0 || s.ascensions > 0)}<span class="pill num" title="Legacy Points">🎖️ {fmt(s.legacy)}</span>{/if}
+    </div>
+  {/if}
   {#if boosts.length}
     <div class="boosts">
       {#each boosts as b}

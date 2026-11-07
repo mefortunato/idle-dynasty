@@ -9,6 +9,7 @@
   import { GRADES, SPORTS, type Athlete, type Sport } from '$lib/engine/types';
   import AthleteCard from './AthleteCard.svelte';
   import Modal from './Modal.svelte';
+  import { has } from '$lib/engine/progression';
 
   const s = $derived(game.s);
   const lu = $derived(lineupAthletes(s));
@@ -66,12 +67,15 @@
     {/if}
     {#if s.lineupLocked}
       <p class="tiny muted">Your lineup is locked until you Ascend. Next playoffs: {SPORT_DEFS[next.sport].emoji} {SPORT_DEFS[next.sport].name} (Tier {next.tier}).</p>
-      <button class="ghost" style="width:100%" disabled={s.trophies < tradeDeadlineCost(s)} onclick={() => game.act((st) => tradeDeadline(st))}>
-        📝 Trade deadline: unlock lineup · 🏆 {tradeDeadlineCost(s)}
-      </button>
+      {#if has(s, 'tradeDeadline')}
+        <button class="ghost" style="width:100%" disabled={s.trophies < tradeDeadlineCost(s)} onclick={() => game.act((st) => tradeDeadline(st))}>
+          📝 Trade deadline: unlock lineup · 🏆 {tradeDeadlineCost(s)}
+        </button>
+      {/if}
     {:else}
       <p class="tiny muted">Tap athletes to add or remove them. The lineup locks when you enter the playoffs. Next playoffs: {SPORT_DEFS[next.sport].emoji} {SPORT_DEFS[next.sport].name}.</p>
     {/if}
+    {#if has(s, 'presets')}
     <div class="row presets">
       {#each [0, 1, 2] as i}
         <div class="preset">
@@ -83,8 +87,10 @@
         </div>
       {/each}
     </div>
+    {/if}
   </div>
 
+  {#if has(s, 'scouting')}
   <div class="card">
     <div class="row"><h2 class="grow">Scouting</h2><span class="pill num">🎟️ {fmt(s.tokens)}</span></div>
     <div class="tiny muted">MVP+ guaranteed in {PITY.mvp - s.scoutPity.mvp} · Legend+ in {PITY.legend - s.scoutPity.legend} · Duplicates become 💠 Training Shards ({fmt(s.shards)})</div>
@@ -92,6 +98,7 @@
       <button class="primary grow" disabled={s.tokens < PACK_COST} onclick={() => doScout(null, 1)}>Scout ×1 · 🎟️{PACK_COST}</button>
       <button class="primary grow" disabled={s.tokens < PACK_COST * 10} onclick={() => doScout(null, 10)}>×10 · 🎟️{PACK_COST * 10}</button>
     </div>
+    {#if SPORTS.some((sp) => focusPackUnlocked(s, sp))}
     <div class="focus">
       {#each SPORTS as sp}
         <button class="tiny" disabled={!focusPackUnlocked(s, sp) || s.tokens < FOCUS_PACK_COST} onclick={() => doScout(sp, 1)}
@@ -100,8 +107,11 @@
         </button>
       {/each}
     </div>
+    {/if}
     <div class="tiny muted">Sport-focused packs unlock after you win that sport's championship.</div>
   </div>
+
+  {/if}
 
   <div class="section-title"><h3>Collection <span class="muted num">{s.athletes.length}/100</span></h3></div>
   <div class="filters">

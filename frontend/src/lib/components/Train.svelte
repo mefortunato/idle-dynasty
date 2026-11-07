@@ -9,6 +9,7 @@
   import type { MiniGameCard } from '$lib/engine/types';
   import MiniGamePlayer from './MiniGamePlayer.svelte';
   import Modal from './Modal.svelte';
+  import { has } from '$lib/engine/progression';
 
   const s = $derived(game.s);
   const max = $derived(maxEnergy(s));
@@ -84,7 +85,7 @@
       <div><span class="mi">{MEDAL_ICON[m as keyof typeof MEDAL_ICON]}</span><b>{d.min}+</b><span class="tiny muted">×{d.mult} · {d.minutes}m</span></div>
     {/each}
   </div>
-  <p class="tiny muted">Same-stat boosts extend duration; different stats multiply together. Daily Gold streaks of 3 days pay Scout Tokens.</p>
+  <p class="tiny muted">Boosts of the same type extend their timer; different types stack.{#if has(s, 'scouting')} Gold medals 3 days in a row earn Scout Tokens.{/if}</p>
 
   {#if Object.keys(s.minigameBest).length}
     <div class="section-title"><h3>Personal bests</h3><span class="tiny muted">tap for today's leaderboard</span></div>

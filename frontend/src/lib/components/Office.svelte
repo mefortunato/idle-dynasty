@@ -7,6 +7,7 @@
   import { leaderboard, setDisplayName, type LeaderRow } from '$lib/api';
   import { SPORTS } from '$lib/engine/types';
   import Modal from './Modal.svelte';
+  import { has } from '$lib/engine/progression';
 
   type Sub = 'coaching' | 'legacy' | 'ascend' | 'records';
   let sub = $state<Sub>('coaching');
@@ -32,7 +33,7 @@
 </script>
 
 <div class="subtabs">
-  {#each [['coaching', '📋 Coaching'], ['legacy', '🎖️ Legacy'], ['ascend', '⭐ Ascend'], ['records', '📊 Records']] as [id, label]}
+  {#each [['coaching', '📋 Coaching'], ...(has(s, 'legacy') ? [['legacy', '🎖️ Legacy'], ['ascend', '⭐ Ascend']] : []), ['records', '📊 Records']] as [id, label]}
     <button class:sel={sub === id} onclick={() => (sub = id as Sub)}>{label}</button>
   {/each}
 </div>
@@ -125,7 +126,10 @@
 {/if}
 
 {#if confirming}
-  <Modal title="Choose next season's mutator" onClose={() => (confirming = false)}>
+  <Modal title={has(s, 'mutators') ? "Choose next season's mutator" : 'Ascend?'} onClose={() => (confirming = false)}>
+    {#if !has(s, 'mutators')}
+      <p class="small">Your cash, venues and coaches reset. You keep all athletes and earn <b class="gold">+{fmt(gain)} 🎖️ Legacy Points</b> for permanent upgrades. Afterwards you'll draft a free athlete and rebuild your lineup.</p>
+    {:else}
     <div class="col">
       {#each MUTATORS as m}
         <button class="mut" class:sel={mutator === m.id} onclick={() => (mutator = m.id)}>
@@ -133,12 +137,13 @@
         </button>
       {/each}
     </div>
+    {/if}
     <button class="primary" style="width:100%;margin-top:12px;padding:14px" onclick={doAscend}>Ascend for +{fmt(gain)} 🎖️</button>
   </Modal>
 {/if}
 
 <style>
-  .subtabs { display: flex; gap: 6px; margin-bottom: 10px; position: sticky; top: 92px; z-index: 5; background: var(--bg); padding: 4px 0; }
+  .subtabs { display: flex; gap: 6px; margin-bottom: 10px; padding: 4px 0; }
   .subtabs button { flex: 1; padding: 8px 2px; font-size: 12px; }
   .subtabs button.sel { background: var(--gold); color: #1a1205; font-weight: 700; }
   .up { display: flex; align-items: center; gap: 8px; padding: 10px; }

@@ -10,6 +10,13 @@
   import { mulberry32 } from '$lib/engine/rng';
   import MiniGamePlayer from './MiniGamePlayer.svelte';
   import Modal from './Modal.svelte';
+  import { has } from '$lib/engine/progression';
+
+  let explainLock = $state(false);
+  function enter() {
+    if (!game.s.lineupLocked && (game.s.stats.playoffGames ?? 0) === 0) { explainLock = true; return; }
+    game.act((st) => startPlayoffs(st));
+  }
 
   const s = $derived(game.s);
   const p = $derived(s.playoff);
@@ -120,13 +127,13 @@
       <div class="bar" style="margin:10px 0 4px"><i style="width:{s.readiness * 100}%"></i></div>
       <div class="tiny muted">Playoff readiness {pct(s.readiness)}</div>
       {#if !s.lineupLocked}<p class="small gold">⚠️ Entering the playoffs locks your lineup for the rest of this run.</p>{/if}
-      <button class="primary enter" disabled={!canEnterPlayoffs(s)} onclick={() => game.act((st) => startPlayoffs(st))}>
+      <button class="primary enter" disabled={!canEnterPlayoffs(s)} onclick={enter}>
         {#if s.readiness >= 1}Enter the Playoffs{:else}Enter early · 🏆 {earlyEntryCost(s)}{/if}
       </button>
     </div>
 
     <div class="section-title"><h3>Upcoming rotation</h3><span class="tiny muted">plan your lineup!</span></div>
-    {#each upcomingSports(s, 5) as u, i}
+    {#each upcomingSports(s, has(s, 'legacy') ? 5 : 3) as u, i}
       {@const tp = teamPower(s, u.sport)}
       {@const op = opponentPower(u.tier, 3)}
       <div class="card row up" class:now={i === 0}>
@@ -136,7 +143,7 @@
         <span class="pill num {tp >= op ? 'green-t' : 'red-t'}">{pct(baseWinProb(tp, op))}</span>
       </div>
     {/each}
-    <p class="tiny muted">Success is mostly team power: athlete ratings in that sport × economy × coaching × Legacy. Clutch moments can swing each game by about −6% to +8%.</p>
+    <p class="tiny muted">The featured sport changes every tier. Team power comes from your lineup's ratings in <b>that</b> sport, boosted by your upgrades. Clutch moments swing each game by up to ±8%.</p>
   </div>
 {:else}
   <div class="col">
@@ -180,6 +187,20 @@
       </div>
     {/if}
   </div>
+{/if}
+
+{#if explainLock}
+  <Modal title="Before you tip off" onClose={() => (explainLock = false)}>
+    <div style="text-align:center">
+      <div style="font-size:48px">🔒</div>
+      <p>Entering the playoffs <b>locks your lineup</b> for the rest of this run.</p>
+      <p class="small muted">Each game is simulated from your team power. During a game you'll get <b>{CLUTCH_PER_GAME} clutch moments</b>, short drills that swing your odds.</p>
+    </div>
+    <div class="row">
+      <button class="ghost grow" onclick={() => (explainLock = false)}>Not yet</button>
+      <button class="primary grow" onclick={() => { explainLock = false; game.act((st) => startPlayoffs(st)); }}>Let's go!</button>
+    </div>
+  </Modal>
 {/if}
 
 {#if phase === 'clutch' && p}

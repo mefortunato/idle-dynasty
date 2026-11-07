@@ -5,12 +5,17 @@
   import { venueStats } from '$lib/engine/formulas';
   import { fmt, pct } from '$lib/engine/format';
   import type { Sport } from '$lib/engine/types';
+  import { has, type Feature } from '$lib/engine/progression';
 
   let { sport }: { sport: Sport } = $props();
   const def = $derived(SPORT_DEFS[sport]);
   const s = $derived(game.s);
   const st = $derived(venueStats(s, sport, game.now));
   let open = $state(true);
+  const FAC_FEATURE: Record<string, Feature | null> = { seating: null, training: 'training', jumbotron: 'jumbotron', special: 'special' };
+  const facs = $derived(FACILITIES.filter((f) => { const need = FAC_FEATURE[f.id]; return !need || has(s, need); }));
+  /** Pulse the cheapest affordable upgrade for brand-new players. */
+  const hintId = $derived(s.stats.minigames === 0 && !has(s, 'train') ? 'seating' : null);
 
   // Cosmetic play-by-play feed.
   let feed = $state<{ id: number; text: string; amt: number; big: boolean }[]>([]);
@@ -44,7 +49,7 @@
     <span class="emoji">{def.emoji}</span>
     <div class="grow" style="text-align:left">
       <h3>{def.name}</h3>
-      <div class="small muted num">{st.pace.toFixed(2)} plays/s · crit {pct(st.critChance)} ×{st.critMult.toFixed(1)}</div>
+      <div class="small muted num">{st.pace.toFixed(2)} plays/s{#if has(s, 'jumbotron')} · crit {pct(st.critChance)} ×{st.critMult.toFixed(1)}{/if}</div>
     </div>
     <div class="cps">
       <div class="display gold num">{fmt(st.cps)}/s</div>
@@ -63,7 +68,7 @@
 
   {#if open}
     <div class="facs">
-      {#each FACILITIES as f}
+      {#each facs as f (f.id)}
         {@const lvl = s.facilities[sport][f.id] ?? 0}
         {@const cost = facilityCost(s, sport, f.id)}
         {@const maxed = f.max !== undefined && lvl >= f.max}
@@ -72,10 +77,12 @@
             <div class="row"><b>{f.name}</b><span class="pill tiny">Lv {lvl}{f.max ? `/${f.max}` : ''}</span></div>
             <div class="tiny muted">{f.desc}</div>
           </div>
-          <button class="buy" disabled={maxed || s.cash < cost} onclick={() => game.act((x) => buyFacility(x, sport, f.id))}>
+          <button class="buy" class:hint={hintId === f.id && s.cash >= cost} disabled={maxed || s.cash < cost} onclick={() => game.act((x) => buyFacility(x, sport, f.id))}>
             {maxed ? 'MAX' : `💵 ${fmt(cost)}`}
           </button>
-          <button class="ghost maxbtn" disabled={maxed || s.cash < cost} onclick={() => game.act((x) => buyFacilityMax(x, sport, f.id))}>×Max</button>
+          {#if has(s, 'maxbuy')}
+            <button class="ghost maxbtn" disabled={maxed || s.cash < cost} onclick={() => game.act((x) => buyFacilityMax(x, sport, f.id))}>×Max</button>
+          {/if}
         </div>
       {/each}
     </div>
@@ -99,5 +106,9 @@
   .facs { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   .fac { display: flex; align-items: center; gap: 6px; background: var(--bg2); border-radius: 10px; padding: 8px; }
   .buy { min-width: 92px; background: linear-gradient(180deg, #ffcd5e, #e8a224); color: #1a1205; font-weight: 700; padding: 8px; font-size: 13px; }
+  .fac { animation: appear 0.4s ease-out; }
+  @keyframes appear { from { opacity: 0; transform: translateY(-6px); } }
+  .buy.hint { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(245, 184, 61, 0.45); transform: scale(1.04); } }
   .maxbtn { padding: 8px 6px; font-size: 12px; }
 </style>

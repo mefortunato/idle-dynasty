@@ -1,4 +1,5 @@
 import { CATALOG_BY_ID, STARTERS, instantiate } from './catalog';
+import { backfillUnlocks } from './progression';
 import type { GameState, Sport } from './types';
 import { SPORTS } from './types';
 
@@ -49,7 +50,8 @@ export function newGame(now = Date.now()): GameState {
     medalStreak: { day: '', count: 0 },
     minigameBest: {},
     playoff: null,
-    stats: { plays: 0, minigames: 0, titles: 0, pulls: 0 },
+    stats: { plays: 0, minigames: 0, titles: 0, pulls: 0, playoffGames: 0 },
+    unlocked: [],
     log: [{ t: now, msg: 'Welcome to Idle Dynasty! Your first franchise tips off in Basketball.' }]
   };
 }
@@ -62,6 +64,10 @@ export function migrate(raw: unknown, now = Date.now()): GameState {
   s.facilities = { ...emptyFacilities(), ...s.facilities };
   s.titles = { ...fresh.titles, ...s.titles };
   s.stats = { ...fresh.stats, ...s.stats };
+  if (!Array.isArray((raw as Partial<GameState>).unlocked)) {
+    s.unlocked = [];
+    backfillUnlocks(s);
+  }
   s.version = SAVE_VERSION;
   return s;
 }

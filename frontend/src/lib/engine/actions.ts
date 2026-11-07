@@ -10,6 +10,7 @@ import {
 } from './formulas';
 import { mulberry32, pick, randomSeed, shuffle } from './rng';
 import { newGame } from './state';
+import { checkUnlocks, type FeatureDef } from './progression';
 import type { Athlete, BoostStat, Grade, GameState, Medal, MiniGameCard, Sport } from './types';
 import { GRADES, SPORTS } from './types';
 import { VARIANTS } from './variants';
@@ -33,7 +34,7 @@ export function advance(s: GameState, dt: number, now: number) {
   s.runFans += fps * dt;
   for (const sp of s.venuesUnlocked) s.stats.plays += venueStats(s, sp, now).pace * dt;
 
-  if (!s.playoff?.active) s.readiness = Math.min(1, s.readiness + readinessPerSec(s) * dt);
+  if (!s.playoff?.active && s.unlocked.includes('playoffs')) s.readiness = Math.min(1, s.readiness + readinessPerSec(s) * dt);
 
   // XP for lineup athletes
   for (const a of lineupAthletes(s)) {
@@ -61,8 +62,8 @@ export function regenEnergy(s: GameState, now: number) {
   }
 }
 
-/** Main loop entry: call frequently with Date.now(). */
-export function tick(s: GameState, now: number) {
+/** Main loop entry: call frequently with Date.now(). Returns any features unlocked this tick. */
+export function tick(s: GameState, now: number): FeatureDef[] {
   const dt = Math.min(5, (now - s.lastTick) / 1000);
   advance(s, dt, now);
   s.lastTick = now;
@@ -70,6 +71,7 @@ export function tick(s: GameState, now: number) {
   regenEnergy(s, now);
   s.boosts = s.boosts.filter((b) => b.expiresAt > now);
   if (s.legacyTree.autobuy) autoBuy(s);
+  return checkUnlocks(s);
 }
 
 export interface OfflineReport {
@@ -320,7 +322,7 @@ export function dealHand(s: GameState, rng = mulberry32(randomSeed()), now = Dat
   for (const v of shuffled) if (chosen.length < n && !chosen.includes(v)) chosen.push(v);
   s.hand = chosen.map((v) => {
     const r = rng();
-    const modifier: MiniGameCard['modifier'] = r < 0.15 ? 'hotstreak' : r < 0.25 ? 'rivalry' : r < 0.35 ? 'fanday' : 'none';
+    const modifier: MiniGameCard['modifier'] = !s.unlocked.includes('modifiers') ? 'none' : r < 0.15 ? 'hotstreak' : r < 0.25 ? 'rivalry' : r < 0.35 ? 'fanday' : 'none';
     return { variant: v.id, sport: v.sport, stat: modifier === 'fanday' ? 'fans' : pick(rng, BOOST_STATS), modifier };
   });
   return s.hand;
@@ -438,6 +440,7 @@ export function resolvePlayoffGame(s: GameState, clutchScores: number[]): GameRe
   const rng = mulberry32(p.seed + p.round * 7919);
   const win = rng() < prob;
   p.results.push(win ? 'W' : 'L');
+  s.stats.playoffGames = (s.stats.playoffGames ?? 0) + 1;
   const res: GameResult = { win, prob, trophies: 0, tokens: 0, title: false, done: false };
   const tokenMult = 1 + 0.1 * (s.coaching.scouting ?? 0);
   if (win) {

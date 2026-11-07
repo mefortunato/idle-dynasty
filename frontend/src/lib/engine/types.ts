@@ -99,6 +99,8 @@ export interface GameState {
 
   playoff: PlayoffRun | null;
 
-  stats: { plays: number; minigames: number; titles: number; pulls: number };
+  stats: { plays: number; minigames: number; titles: number; pulls: number; playoffGames: number };
+  /** Progressive onboarding: features the player has unlocked (see progression.ts). */
+  unlocked: string[];
   log: { t: number; msg: string }[];
 }

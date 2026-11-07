@@ -4,6 +4,7 @@ import * as F from '../src/lib/engine/formulas';
 import { COACHING, FACILITIES, LEGACY, SPORT_DEFS } from '../src/lib/engine/data';
 import { newGame } from '../src/lib/engine/state';
 import { mulberry32 } from '../src/lib/engine/rng';
+import { checkUnlocks } from '../src/lib/engine/progression';
 
 const rng = mulberry32(42);
 let t = 0;
@@ -17,6 +18,7 @@ while (t < END) {
   const now = t * 1000;
   A.advance(s, 1, now); s.lastTick = now; A.regenEnergy(s, now);
   s.boosts = s.boosts.filter(b => b.expiresAt > now);
+  for (const f of checkUnlocks(s)) events.push(`${H(t)} unlock feature ${f.id}`);
   // venue
   const nv = A.nextVenue(s); if (nv && s.cash > SPORT_DEFS[nv].unlockCost) { A.unlockVenue(s, nv); events.push(`${H(t)} unlock ${nv}`); }
   // greedy: cheapest facility

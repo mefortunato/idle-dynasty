@@ -4,6 +4,8 @@
   import { nextVenue, unlockVenue } from '$lib/engine/actions';
   import { fmt, pct } from '$lib/engine/format';
   import VenueCard from './VenueCard.svelte';
+  import GoalBar from './GoalBar.svelte';
+  import { has } from '$lib/engine/progression';
 
   let { onNav }: { onNav: (t: 'arena' | 'train' | 'playoffs' | 'roster' | 'office') => void } = $props();
   const s = $derived(game.s);
@@ -12,7 +14,10 @@
 </script>
 
 <div class="col">
+  <GoalBar />
+  {#if has(s, 'playoffs') || has(s, 'train')}
   <div class="callouts">
+    {#if has(s, 'playoffs')}
     <button class="callout card" onclick={() => onNav('playoffs')}>
       <div class="row">
         <span class="big">{SPORT_DEFS[feat].emoji}</span>
@@ -23,19 +28,21 @@
         <span class="small {s.readiness >= 1 ? 'gold' : 'muted'}">{s.readiness >= 1 ? 'READY!' : pct(s.readiness)}</span>
       </div>
     </button>
-    {#if s.energy > 0 || s.hand}
+    {/if}
+    {#if has(s, 'train') && (s.energy > 0 || s.hand)}
       <button class="callout card train" onclick={() => onNav('train')}>
         <span class="big">⏱️</span>
         <span class="display">Train ({s.energy}⚡)</span>
       </button>
     {/if}
   </div>
+  {/if}
 
   {#each s.venuesUnlocked as sport (sport)}
     <VenueCard {sport} />
   {/each}
 
-  {#if nv}
+  {#if nv && has(s, 'venues')}
     {@const def = SPORT_DEFS[nv]}
     <div class="card locked">
       <div class="row">

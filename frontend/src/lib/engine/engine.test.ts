@@ -10,6 +10,7 @@ import {
 } from './formulas';
 import { fmt } from './format';
 import { mulberry32 } from './rng';
+import { ALL_FEATURES, checkUnlocks, nextGoal, tabUnlocked } from './progression';
 import { newGame, migrate, SAVE_VERSION } from './state';
 import type { Athlete, GameState, MiniGameCard } from './types';
 import { GRADES, SPORTS } from './types';
@@ -94,7 +95,7 @@ describe('migrate', () => {
     for (const sp of SPORTS) expect(s.facilities[sp]).toBeDefined();
     expect(s.facilities.basketball).toEqual({ seating: 3 });
     for (const sp of SPORTS) expect(s.titles[sp]).toBe(0);
-    expect(s.stats).toEqual({ plays: 9, minigames: 0, titles: 0, pulls: 0 });
+    expect(s.stats).toEqual({ plays: 9, minigames: 0, titles: 0, pulls: 0, playoffGames: 0 });
   });
 });
 
@@ -157,8 +158,15 @@ describe('advance', () => {
     expect(s.cash).toBe(25);
   });
 
+  it('does not grow readiness before the playoffs are unlocked', () => {
+    const s = newGame(NOW);
+    advance(s, 900, NOW);
+    expect(s.readiness).toBe(0);
+  });
+
   it('grows readiness linearly and caps it at 1', () => {
     const s = newGame(NOW);
+    s.unlocked.push('playoffs');
     advance(s, 900, NOW); // readiness is 1 per 30 minutes
     expect(s.readiness).toBeCloseTo(0.5, 9);
     advance(s, 1_000_000, NOW);
@@ -652,5 +660,51 @@ describe('misc', () => {
     const a = mulberry32(5);
     const b = mulberry32(5);
     expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+  });
+});
+
+// ───────────────────────── progression ─────────────────────────
+
+describe('progression', () => {
+  it('starts with nothing unlocked and Seating as the first goal', () => {
+    const s = newGame(NOW);
+    expect(s.unlocked).toEqual([]);
+    expect(nextGoal(s)?.id).toBe('training');
+    expect(tabUnlocked(s, 'arena')).toBe(true);
+    for (const t of ['train', 'playoffs', 'roster', 'office'] as const) expect(tabUnlocked(s, t)).toBe(false);
+  });
+
+  it('unlocks features in order as milestones are hit', () => {
+    const s = newGame(NOW);
+    s.facilities.basketball.seating = 5;
+    expect(checkUnlocks(s).map((f) => f.id)).toEqual(['training', 'maxbuy']);
+    s.facilities.basketball.training = 3; // 8 levels
+    expect(checkUnlocks(s).map((f) => f.id)).toEqual(['train']);
+    s.fans = 100; // office requires jumbotron first
+    expect(checkUnlocks(s)).toEqual([]);
+    s.stats.minigames = 1;
+    expect(checkUnlocks(s).map((f) => f.id)).toEqual(['jumbotron', 'office']);
+    s.facilities.basketball.jumbotron = 12; // 20 levels
+    expect(checkUnlocks(s).map((f) => f.id)).toEqual(['venues', 'playoffs', 'roster']);
+    expect(checkUnlocks(s)).toEqual([]);
+  });
+
+  it('keeps drill modifiers off until unlocked', () => {
+    const s = newGame(NOW);
+    s.energy = 5;
+    for (let i = 0; i < 4; i++) {
+      const hand = dealHand(s, mulberry32(i), NOW)!;
+      expect(hand.every((c) => c.modifier === 'none')).toBe(true);
+      s.hand = null;
+    }
+  });
+
+  it('backfills unlocks for saves that predate onboarding', () => {
+    const vet = migrate({ ascensions: 2, bestTier: 9 }, NOW);
+    expect(vet.unlocked).toEqual(ALL_FEATURES);
+    const mid = migrate({ facilities: { basketball: { seating: 4 } } as never }, NOW);
+    expect(mid.unlocked).toEqual(['training']);
+    const fresh = migrate({ unlocked: [] }, NOW);
+    expect(fresh.unlocked).toEqual([]);
   });
 });

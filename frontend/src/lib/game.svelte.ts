@@ -1,4 +1,5 @@
 import { applyOffline, tick, type OfflineReport } from './engine/actions';
+import { checkUnlocks, type FeatureDef, type Tab } from './engine/progression';
 import { migrate, newGame } from './engine/state';
 import type { GameState } from './engine/types';
 import { adoptRevision, fetchSave, pushSave } from './api';
@@ -27,6 +28,10 @@ class Game {
   now = $state(Date.now());
   offline = $state<OfflineReport | null>(null);
   synced = $state<'idle' | 'ok' | 'offline'>('idle');
+  /** Newly unlocked features waiting to be announced (one popup at a time). */
+  announce = $state<FeatureDef[]>([]);
+  /** Tabs unlocked this session that haven't been visited yet. */
+  newTabs = $state<Tab[]>([]);
   /** Pause the idle tick (e.g. while a mini game is fullscreen we still tick; used for debugging). */
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastLocal = 0;
@@ -60,7 +65,7 @@ class Game {
 
   private step() {
     const now = Date.now();
-    tick(this.s, now);
+    this.onUnlocked(tick(this.s, now));
     this.now = now;
     if (now - this.lastLocal > LOCAL_SAVE_MS) this.saveLocal();
     if (now - this.lastCloud > CLOUD_SYNC_MS) void this.cloudPush();
@@ -109,9 +114,27 @@ class Game {
     }
   }
 
+  private onUnlocked(list: FeatureDef[]) {
+    for (const f of list) {
+      if (!f.quiet) this.announce = [...this.announce, f];
+      if (f.tab && f.tab !== 'arena' && (f.id === f.tab || (f.id === 'office' && f.tab === 'office')) && !this.newTabs.includes(f.tab)) {
+        this.newTabs = [...this.newTabs, f.tab];
+      }
+    }
+  }
+
+  dismissAnnouncement() {
+    this.announce = this.announce.slice(1);
+  }
+
+  visitTab(t: Tab) {
+    if (this.newTabs.includes(t)) this.newTabs = this.newTabs.filter((x) => x !== t);
+  }
+
   /** Run an engine action and persist promptly. */
   act<T>(fn: (s: GameState) => T): T {
     const out = fn(this.s);
+    this.onUnlocked(checkUnlocks(this.s));
     this.saveLocal();
     return out;
   }
