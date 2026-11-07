@@ -1,0 +1,9 @@
+**/node_modules
+**/.svelte-kit
+**/build
+**/.venv
+**/__pycache__
+**/.pytest_cache
+.git
+.github
+docs

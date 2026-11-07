@@ -306,11 +306,11 @@ export function scout(s: GameState, focus: Sport | null = null, rng = mulberry32
 
 const BOOST_STATS: BoostStat[] = ['value', 'pace', 'crit', 'special'];
 
-export function dealHand(s: GameState, rng = mulberry32(randomSeed())): MiniGameCard[] | null {
+export function dealHand(s: GameState, rng = mulberry32(randomSeed()), now = Date.now()): MiniGameCard[] | null {
   if (s.hand) return s.hand;
   if (s.energy <= 0) return null;
   s.energy--;
-  if (s.energy === maxEnergy(s) - 1) s.energyAt = Date.now();
+  if (s.energy === maxEnergy(s) - 1) s.energyAt = now;
   const n = 3 + (s.legacyTree.cards ?? 0);
   // Prefer variety across sports: shuffle and prefer distinct sports.
   const shuffled = shuffle(rng, VARIANTS);

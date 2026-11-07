@@ -49,6 +49,7 @@ export interface PlayoffRun {
   seed: number;
   results: ('W' | 'L')[];
   active: boolean;
+  timeoutsUsed?: number;
 }
 
 export interface GameState {
