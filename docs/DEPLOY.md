@@ -107,10 +107,9 @@ Then push to `main` (or run the *Deploy* workflow from the Actions tab). The ser
 ```bash
 # Backend (in-memory store unless MONGODB_URI is set)
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-uvicorn app.main:app --reload --port 8080
-pytest                      # run tests
+uv sync                     # creates .venv from uv.lock (incl. dev group)
+uv run uvicorn app.main:app --reload --port 8080
+uv run pytest               # run tests
 
 # Frontend (separate terminal) - Vite proxies /api to http://localhost:8080
 cd frontend

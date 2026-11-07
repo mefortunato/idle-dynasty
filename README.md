@@ -20,7 +20,7 @@ frontend/   SvelteKit (Svelte 5) SPA, mobile-first PWA
   src/lib/minigames/  15 canvas mini games + shared runtime
   src/lib/components/ UI screens
   scripts/pacing-sim.ts  bot playthrough for balance tuning (npx tsx scripts/pacing-sim.ts 3)
-backend/    FastAPI: guest auth, cloud saves (optimistic concurrency + plausibility checks), leaderboards
+backend/    FastAPI (uv project: pyproject.toml + uv.lock): guest auth, cloud saves (optimistic concurrency + plausibility checks), leaderboards
 Dockerfile  one image: builds the SPA, serves it + /api from uvicorn
 .github/workflows/  ci.yml (tests/build) and deploy.yml (Cloud Run via Workload Identity Federation)
 docs/DEPLOY.md      one-time GCP setup
@@ -31,8 +31,8 @@ docs/DEPLOY.md      one-time GCP setup
 Backend (in-memory store when `MONGODB_URI` is unset):
 
 ```bash
-cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/uvicorn app.main:app --reload --port 8080
+cd backend && uv sync
+uv run uvicorn app.main:app --reload --port 8080
 ```
 
 Frontend (proxies `/api` to :8080):
@@ -41,7 +41,7 @@ Frontend (proxies `/api` to :8080):
 cd frontend && npm install && npm run dev
 ```
 
-Tests: `cd frontend && npm run check && npm test` and `cd backend && .venv/bin/pytest`.
+Tests: `cd frontend && npm run check && npm test` and `cd backend && uv run pytest`.
 
 ## Architecture notes
 
