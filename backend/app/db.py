@@ -18,6 +18,10 @@ class Repo(Protocol):
     async def create_user(self, user: dict) -> None: ...
     async def get_user_by_token_hash(self, token_hash: str) -> dict | None: ...
     async def set_display_name(self, user_id: str, name: str) -> None: ...
+    async def add_session(self, token_hash: str, user_id: str) -> None: ...
+    async def delete_session(self, token_hash: str) -> None: ...
+    async def get_user_by_google_sub(self, sub: str) -> dict | None: ...
+    async def link_google(self, user_id: str, sub: str, email: str | None) -> None: ...
     async def get_save(self, user_id: str) -> dict | None: ...
     async def put_save(self, user_id: str, record: dict, expected_revision: int | None) -> bool: ...
     async def upsert_best_score(self, variant: str, day: str, user_id: str, display_name: str, score: int) -> tuple[int, bool]: ...
@@ -31,6 +35,7 @@ class MemoryRepo:
     def __init__(self) -> None:
         self.users: dict[str, dict] = {}
         self.by_token: dict[str, str] = {}
+        self.sessions: dict[str, str] = {}  # extra device tokens: token_hash -> user_id
         self.saves: dict[str, dict] = {}
         self.scores: dict[tuple[str, str, str], dict] = {}
         self._lock = asyncio.Lock()
@@ -43,8 +48,24 @@ class MemoryRepo:
         self.by_token[user["token"]] = user["_id"]
 
     async def get_user_by_token_hash(self, token_hash: str) -> dict | None:
-        uid = self.by_token.get(token_hash)
+        uid = self.by_token.get(token_hash) or self.sessions.get(token_hash)
         return dict(self.users[uid]) if uid else None
+
+    async def add_session(self, token_hash: str, user_id: str) -> None:
+        self.sessions[token_hash] = user_id
+
+    async def delete_session(self, token_hash: str) -> None:
+        self.sessions.pop(token_hash, None)
+
+    async def get_user_by_google_sub(self, sub: str) -> dict | None:
+        for u in self.users.values():
+            if u.get("googleSub") == sub:
+                return dict(u)
+        return None
+
+    async def link_google(self, user_id: str, sub: str, email: str | None) -> None:
+        self.users[user_id]["googleSub"] = sub
+        self.users[user_id]["email"] = email
 
     async def set_display_name(self, user_id: str, name: str) -> None:
         self.users[user_id]["displayName"] = name
@@ -109,6 +130,8 @@ class MongoRepo:
         from pymongo import ASCENDING, DESCENDING
 
         await self.db.users.create_index("token", unique=True)
+        await self.db.users.create_index("googleSub", unique=True, sparse=True)
+        await self.db.sessions.create_index("userId")
         await self.db.saves.create_index("userId", unique=True)
         await self.db.saves.create_index(
             [("flagged", ASCENDING), ("bestTier", DESCENDING), ("lifetimeTrophies", DESCENDING)]
@@ -123,7 +146,23 @@ class MongoRepo:
         await self.db.users.insert_one(dict(user))
 
     async def get_user_by_token_hash(self, token_hash: str) -> dict | None:
-        return await self.db.users.find_one({"token": token_hash})
+        user = await self.db.users.find_one({"token": token_hash})
+        if user:
+            return user
+        sess = await self.db.sessions.find_one({"_id": token_hash})
+        return await self.db.users.find_one({"_id": sess["userId"]}) if sess else None
+
+    async def add_session(self, token_hash: str, user_id: str) -> None:
+        await self.db.sessions.insert_one({"_id": token_hash, "userId": user_id})
+
+    async def delete_session(self, token_hash: str) -> None:
+        await self.db.sessions.delete_one({"_id": token_hash})
+
+    async def get_user_by_google_sub(self, sub: str) -> dict | None:
+        return await self.db.users.find_one({"googleSub": sub})
+
+    async def link_google(self, user_id: str, sub: str, email: str | None) -> None:
+        await self.db.users.update_one({"_id": user_id}, {"$set": {"googleSub": sub, "email": email}})
 
     async def set_display_name(self, user_id: str, name: str) -> None:
         await self.db.users.update_one({"_id": user_id}, {"$set": {"displayName": name}})

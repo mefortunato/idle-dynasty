@@ -143,3 +143,87 @@ def test_spa(client):
     assert client.get("/manifest.webmanifest").headers["cache-control"] == "no-cache"
     assert client.get("/missing.js").status_code == 404
     assert client.get("/../../etc/passwd").text == "<html>SPA</html>"
+
+
+# ───────────────────────── Google sign-in ─────────────────────────
+
+import pytest  # noqa: E402
+
+from app import google_auth  # noqa: E402
+from app.config import Settings  # noqa: E402
+from app.main import create_app  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+
+@pytest.fixture
+def gclient(static_dir, monkeypatch):
+    """Client with Google sign-in enabled; credentials of the form 'test-cred:<sub>' verify as that sub."""
+
+    def fake_verify(credential: str, client_id: str):
+        assert client_id == "test-client.apps.googleusercontent.com"
+        if not credential.startswith("test-cred:"):
+            raise google_auth.GoogleAuthError("bad")
+        sub = credential.split(":", 1)[1]
+        return google_auth.GoogleIdentity(sub=sub, email=f"{sub}@example.com")
+
+    monkeypatch.setattr(google_auth, "verify_credential", fake_verify)
+    app = create_app(Settings(static_dir=static_dir, google_client_id="test-client.apps.googleusercontent.com"))
+    with TestClient(app) as c:
+        yield c
+
+
+def _bearer(t):
+    return {"Authorization": f"Bearer {t}"}
+
+
+def test_config_exposes_client_id(client, gclient):
+    assert client.get("/api/config").json() == {"googleClientId": None}
+    assert gclient.get("/api/config").json()["googleClientId"].endswith(".apps.googleusercontent.com")
+
+
+def test_google_not_configured(client):
+    r = client.post("/api/auth/google", json={"credential": "test-cred:abcdefghijklmnopqrstu"})
+    assert r.status_code == 503
+
+
+def test_google_rejects_bad_credential(gclient):
+    r = gclient.post("/api/auth/google", json={"credential": "x" * 40})
+    assert r.status_code == 401
+
+
+def test_google_links_guest_and_keeps_progress(gclient):
+    g = gclient.post("/api/auth/guest").json()
+    assert gclient.put("/api/save", json={"save": {"version": 1, "cash": 5}, "revision": None}, headers=_bearer(g["token"])).status_code == 200
+    r = gclient.post("/api/auth/google", json={"credential": "test-cred:sub-111111111111111"}, headers=_bearer(g["token"]))
+    d = r.json()
+    assert r.status_code == 200 and d["linked"] is True and d["userId"] == g["userId"]
+    assert d["google"] == {"email": "sub-111111111111111@example.com"}
+    # New token reaches the same save; the old guest token keeps working too.
+    assert gclient.get("/api/save", headers=_bearer(d["token"])).json()["save"]["cash"] == 5
+    assert gclient.get("/api/me", headers=_bearer(g["token"])).json()["google"] is not None
+
+
+def test_google_second_device_signs_into_same_account(gclient):
+    first = gclient.post("/api/auth/google", json={"credential": "test-cred:sub-222222222222222"}).json()
+    other_guest = gclient.post("/api/auth/guest").json()
+    second = gclient.post(
+        "/api/auth/google", json={"credential": "test-cred:sub-222222222222222"}, headers=_bearer(other_guest["token"])
+    ).json()
+    assert second["linked"] is False and second["userId"] == first["userId"] != other_guest["userId"]
+    assert second["token"] != first["token"]
+    assert gclient.get("/api/me", headers=_bearer(second["token"])).json()["userId"] == first["userId"]
+
+
+def test_logout_revokes_session_token(gclient):
+    first = gclient.post("/api/auth/google", json={"credential": "test-cred:sub-333333333333333"}).json()
+    second = gclient.post("/api/auth/google", json={"credential": "test-cred:sub-333333333333333"}).json()
+    assert gclient.post("/api/auth/logout", headers=_bearer(second["token"])).json() == {"ok": True}
+    assert gclient.get("/api/me", headers=_bearer(second["token"])).status_code == 401
+    assert gclient.get("/api/me", headers=_bearer(first["token"])).status_code == 200
+
+
+def test_already_linked_account_cannot_be_relinked(gclient):
+    a = gclient.post("/api/auth/google", json={"credential": "test-cred:sub-444444444444444"}).json()
+    b = gclient.post("/api/auth/google", json={"credential": "test-cred:sub-555555555555555"}, headers=_bearer(a["token"])).json()
+    assert b["userId"] != a["userId"] and b["linked"] is False
+    assert gclient.get("/api/me", headers=_bearer(a["token"])).json()["google"]["email"].startswith("sub-444")

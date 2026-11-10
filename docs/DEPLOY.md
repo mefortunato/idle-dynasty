@@ -102,6 +102,29 @@ gh variable set USE_MONGODB        --repo "$REPO" --body "true"               # 
 
 Then push to `main` (or run the *Deploy* workflow from the Actions tab). The service URL appears in the job summary.
 
+## Sign in with Google (optional)
+
+Players can play as guests without this. Setting it up adds a **Sign in with Google** button in ⚙️ Settings, which backs up progress and syncs it across devices. It needs MongoDB (`USE_MONGODB=true`); with the in-memory store, accounts vanish on restart.
+
+1. In the Google Cloud console for your project, open **APIs & Services → OAuth consent screen**. Choose *External*, enter the app name, support email and developer contact, and add the scopes `openid`, `email` and `profile` (no sensitive scopes are needed). Publish the app when you're ready for anyone to sign in; in *Testing* mode only listed test users can.
+2. Open **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - Application type: **Web application**
+   - **Authorized JavaScript origins**: your Cloud Run URL (e.g. `https://idle-dynasty-xxxxx-uc.a.run.app`), any custom domain, and for local dev `http://localhost:5173` and `http://localhost:8080`. Google doesn't accept `127.0.0.1` as an origin, so browse to `localhost`.
+   - No redirect URIs are needed. The button uses a popup and returns an ID token that the backend verifies.
+3. Copy the client ID (`….apps.googleusercontent.com`; it's public, not a secret) into a repo variable:
+
+```bash
+gh variable set GOOGLE_CLIENT_ID --repo "$REPO" --body "1234567890-abc.apps.googleusercontent.com"
+```
+
+The next deploy passes it to Cloud Run as the `GOOGLE_CLIENT_ID` env var. For local dev, run the backend with `GOOGLE_CLIENT_ID=… uv run uvicorn app.main:app --reload --port 8080`.
+
+How accounts work:
+- A guest who signs in for the first time has Google **linked to their guest account**, so their progress carries over.
+- Signing in on another device (or after signing out) joins the existing account. If both saves have progress, the one with more progress wins, unless one side was deliberately reset more recently.
+- **Sign out** keeps progress on the account and starts this device over as a new guest.
+- **Reset progress** (⚙️ Settings) wipes the franchise locally and on the account.
+
 ## Local development
 
 ```bash
@@ -118,6 +141,6 @@ npm run dev
 ```
 
 Environment variables: `MONGODB_URI`, `MONGODB_DB` (default `idle_dynasty`), `STATIC_DIR` (default `./static`),
-`PORT` (default 8080), `CORS_ORIGINS` (comma-separated, only needed if not using the Vite proxy).
+`PORT` (default 8080), `GOOGLE_CLIENT_ID` (enables Google sign-in), `CORS_ORIGINS` (comma-separated, only needed if not using the Vite proxy).
 
 Local container build: `docker build -t idle-dynasty . && docker run -p 8080:8080 idle-dynasty`.

@@ -32,3 +32,7 @@ class ScoreIn(BaseModel):
 
 class MeIn(BaseModel):
     displayName: str = Field(min_length=3, max_length=20, pattern=r"^[A-Za-z0-9 _-]+$")
+
+
+class GoogleIn(BaseModel):
+    credential: str = Field(min_length=20, max_length=8192)

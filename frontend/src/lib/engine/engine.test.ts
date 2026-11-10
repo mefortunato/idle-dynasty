@@ -10,6 +10,7 @@ import {
 } from './formulas';
 import { fmt } from './format';
 import { mulberry32 } from './rng';
+import { preferRemote } from './sync';
 import { ALL_FEATURES, checkUnlocks, nextGoal, tabUnlocked } from './progression';
 import { newGame, migrate, SAVE_VERSION } from './state';
 import type { Athlete, GameState, MiniGameCard } from './types';
@@ -706,5 +707,31 @@ describe('progression', () => {
     expect(mid.unlocked).toEqual(['training']);
     const fresh = migrate({ unlocked: [] }, NOW);
     expect(fresh.unlocked).toEqual([]);
+  });
+});
+
+// ───────────────────────── cloud sync ─────────────────────────
+
+describe('preferRemote', () => {
+  it('prefers the save with more progress when neither was reset', () => {
+    const a = newGame(NOW);
+    const b = newGame(NOW);
+    b.bestTier = 3;
+    expect(preferRemote(b, a)).toBe(true);
+    expect(preferRemote(a, b)).toBe(false);
+  });
+
+  it('lets a newer deliberate reset beat a more-progressed older save', () => {
+    const old = newGame(NOW);
+    old.ascensions = 5;
+    old.bestTier = 20;
+    const fresh = newGame(NOW);
+    fresh.resetAt = NOW;
+    expect(preferRemote(fresh, old)).toBe(true);
+    expect(preferRemote(old, fresh)).toBe(false);
+  });
+
+  it('migrates old saves with resetAt 0', () => {
+    expect(migrate({ cash: 5 }, NOW).resetAt).toBe(0);
   });
 });

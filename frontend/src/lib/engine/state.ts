@@ -14,6 +14,7 @@ export function newGame(now = Date.now()): GameState {
   return {
     version: SAVE_VERSION,
     createdAt: now,
+    resetAt: 0,
     lastTick: now,
     lastSeen: now,
     cash: 25,

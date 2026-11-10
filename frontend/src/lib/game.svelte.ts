@@ -1,8 +1,9 @@
 import { applyOffline, tick, type OfflineReport } from './engine/actions';
 import { checkUnlocks, type FeatureDef, type Tab } from './engine/progression';
 import { migrate, newGame } from './engine/state';
+import { preferRemote } from './engine/sync';
 import type { GameState } from './engine/types';
-import { adoptRevision, fetchSave, pushSave } from './api';
+import { adoptRevision, clearRevision, fetchSave, getMe, googleSignIn, logout, pushSave, type Account } from './api';
 
 const SAVE_KEY = 'idle-dynasty.save.v1';
 const TICK_MS = 100;
@@ -18,11 +19,6 @@ function loadLocal(): GameState | null {
   }
 }
 
-/** Progress score used to decide between local and cloud saves on conflict. */
-function progress(s: GameState): number {
-  return s.ascensions * 1e6 + s.lifetimeTrophies * 10 + s.bestTier * 1000 + Math.log10(1 + s.runCash);
-}
-
 class Game {
   s = $state<GameState>(loadLocal() ?? newGame());
   now = $state(Date.now());
@@ -32,6 +28,8 @@ class Game {
   announce = $state<FeatureDef[]>([]);
   /** Tabs unlocked this session that haven't been visited yet. */
   newTabs = $state<Tab[]>([]);
+  /** Server account info (null while offline / before the first sync). */
+  account = $state<Account | null>(null);
   /** Pause the idle tick (e.g. while a mini game is fullscreen we still tick; used for debugging). */
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastLocal = 0;
@@ -43,7 +41,7 @@ class Game {
     this.timer = setInterval(() => this.step(), TICK_MS);
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('pagehide', this.saveLocal);
-    void this.cloudLoad();
+    void this.cloudLoad().then(() => this.refreshAccount());
   }
 
   stop() {
@@ -87,13 +85,51 @@ class Game {
       return;
     }
     const r = migrate(remote.save);
-    if (progress(r) > progress(this.s)) {
+    if (preferRemote(r, this.s)) {
       this.s = r;
       const report = applyOffline(this.s, Date.now());
       if (report) this.offline = report;
     }
     this.synced = 'ok';
     void this.cloudPush();
+  }
+
+  async refreshAccount() {
+    this.account = await getMe();
+  }
+
+  /** Called with the ID token from the Google button. */
+  async signInWithGoogle(credential: string): Promise<string | null> {
+    this.saveLocal();
+    const res = await googleSignIn(credential);
+    if ('error' in res) return res.error;
+    this.account = res;
+    if (!res.linked) {
+      // Signed into an existing account: reconcile this device's save with the account's.
+      clearRevision();
+      await this.cloudLoad();
+    } else {
+      void this.cloudPush();
+    }
+    return null;
+  }
+
+  /** Sign out: progress stays on the account; this device starts over as a new guest. */
+  async signOut() {
+    await this.cloudPush();
+    await logout();
+    this.account = null;
+    this.startFresh(0);
+  }
+
+  private startFresh(resetAt: number) {
+    const fresh = newGame();
+    fresh.resetAt = resetAt;
+    this.s = fresh;
+    this.announce = [];
+    this.newTabs = [];
+    this.offline = null;
+    this.saveLocal();
   }
 
   async cloudPush() {
@@ -106,7 +142,7 @@ class Game {
     if (res.conflict) {
       const r = migrate(res.conflict.save);
       adoptRevision(res.conflict.revision);
-      if (progress(r) > progress(this.s)) this.s = r;
+      if (preferRemote(r, this.s)) this.s = r;
       await pushSave($state.snapshot(this.s));
       this.synced = 'ok';
     } else {
@@ -139,10 +175,10 @@ class Game {
     return out;
   }
 
-  reset() {
-    this.s = newGame();
-    this.saveLocal();
-    void this.cloudPush();
+  /** Wipe all progress (locally and on the account) and start over. */
+  async reset() {
+    this.startFresh(Date.now());
+    await this.cloudPush();
   }
 
   exportSave(): string {

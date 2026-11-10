@@ -80,6 +80,64 @@ export async function leaderboard(kind: 'dynasty' | string): Promise<LeaderRow[]
   } catch { return []; }
 }
 
+export interface Account {
+  userId: string;
+  displayName: string;
+  google: { email: string | null } | null;
+}
+
+export function hasToken(): boolean {
+  return !!token();
+}
+
+/** Forget the local token and revision (next sync creates a fresh guest). */
+export function clearIdentity() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REV_KEY);
+  } catch { /* ignore */ }
+}
+
+export function clearRevision() {
+  try { localStorage.removeItem(REV_KEY); } catch { /* ignore */ }
+}
+
+let configCache: Promise<{ googleClientId: string | null }> | null = null;
+export function getConfig(): Promise<{ googleClientId: string | null }> {
+  configCache ??= req<{ googleClientId: string | null }>('GET', '/config')
+    .then((r) => r.data ?? { googleClientId: null })
+    .catch(() => ({ googleClientId: null }));
+  return configCache;
+}
+
+export async function getMe(): Promise<Account | null> {
+  if (!token()) return null;
+  try {
+    const r = await req<Account>('GET', '/me');
+    return r.status === 200 ? r.data : null;
+  } catch { return null; }
+}
+
+export type GoogleResult = (Account & { linked: boolean }) | { error: string };
+
+/** Exchange a Google ID token; sends the current guest token so progress can be linked. */
+export async function googleSignIn(credential: string): Promise<GoogleResult> {
+  try {
+    const r = await req<Account & { linked: boolean; token: string; detail?: string }>('POST', '/auth/google', { credential });
+    if (r.status !== 200 || !r.data?.token) return { error: r.data?.detail ?? `Sign-in failed (${r.status})` };
+    localStorage.setItem(TOKEN_KEY, r.data.token);
+    const { token: _t, ...account } = r.data;
+    return account;
+  } catch {
+    return { error: 'Could not reach the server.' };
+  }
+}
+
+export async function logout() {
+  try { await req('POST', '/auth/logout'); } catch { /* offline: still clear locally */ }
+  clearIdentity();
+}
+
 export async function setDisplayName(displayName: string): Promise<boolean> {
   if (!(await ensureAuth())) return false;
   try { return (await req('PATCH', '/me', { displayName })).status === 200; } catch { return false; }

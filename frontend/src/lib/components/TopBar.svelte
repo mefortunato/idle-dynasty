@@ -6,6 +6,7 @@
   import { fmtTime } from '$lib/engine/format';
   import { has } from '$lib/engine/progression';
 
+  let { onSettings }: { onSettings: () => void } = $props();
   const s = $derived(game.s);
   const cps = $derived(totalCps(s, game.now));
   const fps = $derived(fansPerSec(s, game.now));
@@ -15,7 +16,8 @@
 <header>
   <div class="money">
     <div class="cash display num">💵 {fmt(s.cash)}</div>
-    <div class="rate small muted num">+{fmt(cps)}/s</div>
+    <div class="rate small muted num grow">+{fmt(cps)}/s</div>
+    <button class="gear" aria-label="Settings" onclick={onSettings}>⚙️</button>
   </div>
   {#if has(s, 'office')}
     <div class="cur">
@@ -41,6 +43,7 @@
     border-bottom: 1px solid var(--line);
   }
   .money { display: flex; align-items: baseline; gap: 10px; }
+  .gear { background: transparent; font-size: 20px; padding: 4px 6px; align-self: center; }
   .cash { font-size: 28px; color: var(--gold); line-height: 1.1; }
   .cur { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
   .boosts { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; scrollbar-width: none; }

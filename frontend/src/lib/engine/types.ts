@@ -55,6 +55,8 @@ export interface PlayoffRun {
 export interface GameState {
   version: number;
   createdAt: number;
+  /** Set when the player deliberately resets; a newer reset wins over older saves during cloud sync. */
+  resetAt: number;
   lastTick: number;
   lastSeen: number;
 

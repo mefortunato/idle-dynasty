@@ -6,10 +6,11 @@ from collections import defaultdict, deque
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from .. import auth, validation
-from ..models import MAX_SAVE_BYTES, MEDALS, VARIANTS, MeIn, SaveIn, ScoreIn
+from .. import auth, google_auth, validation
+from ..models import MAX_SAVE_BYTES, MEDALS, VARIANTS, GoogleIn, MeIn, SaveIn, ScoreIn
 
 router = APIRouter(prefix="/api")
 
@@ -35,22 +36,87 @@ async def health(request: Request):
     return {"ok": True, "db": _repo(request).kind}
 
 
-@router.post("/auth/guest")
-async def guest(request: Request):
+@router.get("/config")
+async def config(request: Request):
+    """Public client configuration (the Google client ID is not a secret)."""
+    return {"googleClientId": request.app.state.settings.google_client_id}
+
+
+async def _create_user(request: Request, **extra) -> tuple[dict, str]:
     token = auth.new_token()
     user = {
         "_id": auth.new_user_id(),
         "token": auth.hash_token(token),
         "displayName": auth.default_display_name(),
         "createdAt": _iso(_now()),
+        **extra,
     }
     await _repo(request).create_user(user)
+    return user, token
+
+
+def _me(user: dict) -> dict:
+    return {
+        "userId": user["_id"],
+        "displayName": user["displayName"],
+        "google": {"email": user.get("email")} if user.get("googleSub") else None,
+    }
+
+
+@router.post("/auth/guest")
+async def guest(request: Request):
+    user, token = await _create_user(request)
     return {"userId": user["_id"], "token": token, "displayName": user["displayName"]}
+
+
+@router.post("/auth/google")
+async def google_sign_in(body: GoogleIn, request: Request):
+    """Exchange a Google ID token for a session token.
+
+    - Google account already known: sign this device into that account (`linked: false`).
+    - Otherwise, if the caller is a guest, attach Google to the guest account so its progress is kept (`linked: true`).
+    - Otherwise create a new account for this Google identity.
+    """
+    client_id = request.app.state.settings.google_client_id
+    if not client_id:
+        raise HTTPException(503, "Google sign-in is not configured")
+    try:
+        ident = await run_in_threadpool(google_auth.verify_credential, body.credential, client_id)
+    except google_auth.GoogleAuthError:
+        raise HTTPException(401, "Invalid Google credential")
+
+    repo = _repo(request)
+    token = auth.new_token()
+    existing = await repo.get_user_by_google_sub(ident.sub)
+    linked = False
+    if existing:
+        user = existing
+        await repo.add_session(auth.hash_token(token), user["_id"])
+    else:
+        guest_user = await auth.optional_user(request)
+        if guest_user and not guest_user.get("googleSub"):
+            user = guest_user
+            await repo.link_google(user["_id"], ident.sub, ident.email)
+            await repo.add_session(auth.hash_token(token), user["_id"])
+            linked = True
+        else:
+            user, token = await _create_user(request, googleSub=ident.sub, email=ident.email)
+        user = {**user, "googleSub": ident.sub, "email": ident.email}
+    return {"token": token, "linked": linked, **_me(user)}
+
+
+@router.post("/auth/logout")
+async def logout(request: Request):
+    """Revoke this device's extra session token (if any). Idempotent."""
+    token = auth.bearer_token(request)
+    if token:
+        await _repo(request).delete_session(auth.hash_token(token))
+    return {"ok": True}
 
 
 @router.get("/me")
 async def me(user: dict = Depends(auth.current_user)):
-    return {"userId": user["_id"], "displayName": user["displayName"]}
+    return _me(user)
 
 
 @router.patch("/me")
@@ -59,7 +125,7 @@ async def patch_me(body: MeIn, request: Request, user: dict = Depends(auth.curre
     if not 3 <= len(name) <= 20:
         raise HTTPException(422, "displayName must be 3-20 characters")
     await _repo(request).set_display_name(user["_id"], name)
-    return {"userId": user["_id"], "displayName": name}
+    return _me({**user, "displayName": name})
 
 
 def _save_response(rec: dict) -> dict:

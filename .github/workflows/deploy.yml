@@ -58,6 +58,7 @@ jobs:
             --max-instances=3
             --memory=512Mi
             ${{ vars.USE_MONGODB == 'true' && '--set-secrets=MONGODB_URI=idle-dynasty-mongodb-uri:latest' || '' }}
+            ${{ vars.GOOGLE_CLIENT_ID != '' && format('--set-env-vars=GOOGLE_CLIENT_ID={0}', vars.GOOGLE_CLIENT_ID) || '' }}
 
       - name: Summary
         run: |

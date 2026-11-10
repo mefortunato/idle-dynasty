@@ -4,7 +4,7 @@
   import { COACHING, LEGACY, MUTATORS, SPORT_DEFS } from '$lib/engine/data';
   import { canAscend, legacyFloorTier, legacyGain } from '$lib/engine/formulas';
   import { fmt } from '$lib/engine/format';
-  import { leaderboard, setDisplayName, type LeaderRow } from '$lib/api';
+  import { leaderboard, type LeaderRow } from '$lib/api';
   import { SPORTS } from '$lib/engine/types';
   import Modal from './Modal.svelte';
   import { has } from '$lib/engine/progression';
@@ -16,9 +16,6 @@
   let confirming = $state(false);
   let mutator = $state('none');
   let dynasty = $state<LeaderRow[] | null>(null);
-  let name = $state('');
-  let importCode = $state('');
-  let msg = $state('');
 
   const branches = [...new Set(LEGACY.map((l) => l.branch))];
 
@@ -103,24 +100,11 @@
       {#each dynasty ?? [] as r, i}
         <div class="row lb small"><span class="muted num">{i + 1}.</span><span class="grow">{r.displayName}</span><span class="num">Tier {r.bestTier} · 🏆{fmt(r.lifetimeTrophies ?? 0)}</span></div>
       {/each}
-      <div class="row" style="margin-top:8px">
-        <input class="grow" placeholder="Coach name" maxlength="20" bind:value={name} />
-        <button onclick={async () => { msg = (await setDisplayName(name)) ? 'Name saved!' : 'Name must be 3-20 letters/numbers.'; void loadBoard(); }}>Set</button>
-      </div>
+      <p class="tiny muted" style="margin-top:8px">Change your coach name in ⚙️ Settings.</p>
     </div>
     <div class="card">
       <h3>Recent events</h3>
       {#each s.log.slice(0, 12) as l}<div class="tiny logl"><span class="muted">{new Date(l.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> {l.msg}</div>{/each}
-    </div>
-    <div class="card col">
-      <h3>Save data</h3>
-      <div class="row">
-        <button class="grow" onclick={async () => { await navigator.clipboard?.writeText(game.exportSave()); msg = 'Save code copied to clipboard.'; }}>Export</button>
-        <button class="grow" onclick={() => { msg = game.importSave(importCode) ? 'Save imported!' : 'Invalid save code.'; }}>Import</button>
-      </div>
-      <input placeholder="Paste save code to import" bind:value={importCode} />
-      <button class="danger" onclick={() => { if (window.confirm('Reset ALL progress? This cannot be undone.')) game.reset(); }}>Hard reset</button>
-      {#if msg}<div class="small gold">{msg}</div>{/if}
     </div>
   </div>
 {/if}
@@ -154,7 +138,6 @@
   .stat .display { font-size: 22px; }
   .lb { border-bottom: 1px solid var(--line); padding: 4px 0; }
   .logl { padding: 2px 0; }
-  input { background: var(--bg2); border: 1px solid var(--line); color: var(--text); padding: 10px; border-radius: 10px; font: inherit; min-width: 0; }
   .mut { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; }
   .mut.sel { box-shadow: 0 0 0 2px var(--gold); }
 </style>

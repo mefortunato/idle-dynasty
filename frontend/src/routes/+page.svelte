@@ -9,6 +9,7 @@
   import Office from '$lib/components/Office.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import DraftModal from '$lib/components/DraftModal.svelte';
+  import Settings from '$lib/components/Settings.svelte';
   import { fmt, fmtTime } from '$lib/engine/format';
   import { tabUnlocked, type Tab } from '$lib/engine/progression';
 
@@ -20,6 +21,7 @@
     { id: 'office', label: 'Office', icon: '🏛️' }
   ];
   let tab = $state<Tab>('arena');
+  let settingsOpen = $state(false);
 
   onMount(() => {
     try { const t = localStorage.getItem('idle-dynasty.tab') as Tab | null; if (t && TABS.some((x) => x.id === t) && tabUnlocked(game.s, t)) tab = t; } catch { /* ignore */ }
@@ -51,7 +53,7 @@
 </script>
 
 <div class="app">
-  <TopBar />
+  <TopBar onSettings={() => (settingsOpen = true)} />
   <main>
     {#if tab === 'arena'}<Arena onNav={go} />
     {:else if tab === 'train'}<Train />
@@ -107,6 +109,10 @@
       {/if}
     </div>
   </Modal>
+{/if}
+
+{#if settingsOpen}
+  <Settings onClose={() => (settingsOpen = false)} />
 {/if}
 
 {#if s.pendingDraft}

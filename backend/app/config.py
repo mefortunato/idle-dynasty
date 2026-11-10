@@ -14,6 +14,7 @@ class Settings:
     port: int = 8080
     cors_origins: list[str] = field(default_factory=list)
     token_secret: str | None = None  # reserved; tokens are opaque random strings
+    google_client_id: str | None = None  # OAuth 2.0 Web client ID; enables Sign in with Google
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -25,4 +26,5 @@ class Settings:
             port=int(os.environ.get("PORT") or 8080),
             cors_origins=[o.strip() for o in origins.split(",") if o.strip()],
             token_secret=os.environ.get("TOKEN_SECRET") or None,
+            google_client_id=os.environ.get("GOOGLE_CLIENT_ID") or None,
         )

@@ -24,12 +24,21 @@ def default_display_name() -> str:
     return "Coach-" + secrets.token_hex(2).upper()
 
 
-async def current_user(request: Request) -> dict:
+def bearer_token(request: Request) -> str | None:
     header = request.headers.get("authorization", "")
     scheme, _, token = header.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
+    return token.strip() if scheme.lower() == "bearer" and token.strip() else None
+
+
+async def optional_user(request: Request) -> dict | None:
+    token = bearer_token(request)
+    return await request.app.state.repo.get_user_by_token_hash(hash_token(token)) if token else None
+
+
+async def current_user(request: Request) -> dict:
+    if not bearer_token(request):
         raise HTTPException(401, "Missing bearer token", headers={"WWW-Authenticate": "Bearer"})
-    user = await request.app.state.repo.get_user_by_token_hash(hash_token(token.strip()))
+    user = await optional_user(request)
     if not user:
         raise HTTPException(401, "Invalid token", headers={"WWW-Authenticate": "Bearer"})
     return user
