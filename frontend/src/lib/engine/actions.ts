@@ -32,7 +32,7 @@ export function advance(s: GameState, dt: number, now: number) {
   s.runCash += cash;
   s.fans += fps * dt;
   s.runFans += fps * dt;
-  for (const sp of s.venuesUnlocked) s.stats.plays += venueStats(s, sp, now).pace * dt;
+  s.stats.plays += venueStats(s, s.activeVenue, now).pace * dt;
 
   if (!s.playoff?.active && s.unlocked.includes('playoffs')) s.readiness = Math.min(1, s.readiness + readinessPerSec(s) * dt);
 
@@ -130,7 +130,7 @@ export function buyFacilityMax(s: GameState, sport: Sport, id: string): number {
 export function autoBuy(s: GameState) {
   for (let i = 0; i < 20; i++) {
     let best: { sport: Sport; id: string; cost: number } | null = null;
-    for (const sp of s.venuesUnlocked) {
+    for (const sp of [s.activeVenue]) {
       for (const f of FACILITIES) {
         if (f.max !== undefined && (s.facilities[sp][f.id] ?? 0) >= f.max) continue;
         const cost = facilityCost(s, sp, f.id);
@@ -154,6 +154,31 @@ export function unlockVenue(s: GameState, sport: Sport): boolean {
   s.venuesUnlocked.push(sport);
   log(s, `${SPORT_DEFS[sport].emoji} ${SPORT_DEFS[sport].name} venue opened!`);
   return true;
+}
+
+/** Unlocking never switches arenas; the player explicitly chooses where to play. */
+export function switchVenue(s: GameState, sport: Sport, now = Date.now()): boolean {
+  if (!s.venuesUnlocked.includes(sport) || sport === s.activeVenue) return false;
+  // Settle elapsed play in the old venue before changing its income rate.
+  advance(s, Math.min(5, (now - s.lastTick) / 1000), now);
+  s.lastTick = now;
+  s.lastSeen = now;
+  s.activeVenue = sport;
+  log(s, `${SPORT_DEFS[sport].emoji} Switched to ${SPORT_DEFS[sport].name}.`, now);
+  return true;
+}
+
+export const ARENA_BONUS_COOLDOWN_MS = 30_000;
+export const ARENA_BONUS_SECONDS = 2;
+
+/** A small, optional instant reward. One cooldown is shared by every arena. */
+export function arenaQuickPlay(s: GameState, sport: Sport, now = Date.now()): number {
+  if (sport !== s.activeVenue || !s.venuesUnlocked.includes(sport) || now < s.arenaBonusReadyAt) return 0;
+  const cash = totalCps(s, now) * ARENA_BONUS_SECONDS;
+  s.cash += cash;
+  s.runCash += cash;
+  s.arenaBonusReadyAt = now + ARENA_BONUS_COOLDOWN_MS;
+  return cash;
 }
 
 export function coachingCost(s: GameState, id: string): number {
@@ -495,6 +520,8 @@ export function ascend(s: GameState, mutatorId = 'none', rng = mulberry32(random
   s.champTier = Math.max(floor, 1);
   s.readiness = 0;
   s.venuesUnlocked = ['basketball'];
+  s.activeVenue = 'basketball';
+  s.arenaBonusReadyAt = 0;
   s.facilities = fresh.facilities;
   s.coaching = {};
   s.boosts = [];

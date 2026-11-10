@@ -1,9 +1,10 @@
 import { CATALOG_BY_ID, STARTERS, instantiate } from './catalog';
 import { backfillUnlocks } from './progression';
+import { SPORT_ORDER } from './data';
 import type { GameState, Sport } from './types';
 import { SPORTS } from './types';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 function emptyFacilities(): Record<Sport, Record<string, number>> {
   return Object.fromEntries(SPORTS.map((s) => [s, {}])) as Record<Sport, Record<string, number>>;
@@ -32,6 +33,8 @@ export function newGame(now = Date.now()): GameState {
     bestTier: 0,
     readiness: 0,
     venuesUnlocked: ['basketball'],
+    activeVenue: 'basketball',
+    arenaBonusReadyAt: 0,
     facilities: emptyFacilities(),
     coaching: {},
     mutator: 'none',
@@ -65,6 +68,13 @@ export function migrate(raw: unknown, now = Date.now()): GameState {
   s.facilities = { ...emptyFacilities(), ...s.facilities };
   s.titles = { ...fresh.titles, ...s.titles };
   s.stats = { ...fresh.stats, ...s.stats };
+  // Old saves ran every unlocked venue. Keep progress and select the latest arena.
+  const unlocked = Array.isArray(s.venuesUnlocked) ? s.venuesUnlocked : [];
+  s.venuesUnlocked = SPORT_ORDER.filter((sport) => sport === 'basketball' || unlocked.includes(sport));
+  const savedActive = (raw as Partial<GameState>).activeVenue;
+  s.activeVenue = savedActive && s.venuesUnlocked.includes(savedActive)
+    ? savedActive : s.venuesUnlocked[s.venuesUnlocked.length - 1];
+  if (!Number.isFinite(s.arenaBonusReadyAt) || s.arenaBonusReadyAt < 0) s.arenaBonusReadyAt = 0;
   if (!Array.isArray((raw as Partial<GameState>).unlocked)) {
     s.unlocked = [];
     backfillUnlocks(s);

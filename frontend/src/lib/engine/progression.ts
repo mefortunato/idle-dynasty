@@ -77,7 +77,7 @@ export const FEATURES: FeatureDef[] = [
   {
     id: 'venues', icon: '🏟️', title: 'New Venues', tab: 'arena', after: 'office',
     goal: 'Buy 12 upgrades', progress: (s) => frac(facilityLevels(s), 12),
-    intro: ['You can build a second venue to earn from a new sport.', 'Each sport earns differently, and each venue has its own upgrades.']
+    intro: ['Unlock new arenas, then choose which sport is active. Only your active arena earns cash and Fans, including while you are away.', 'Switch freely between unlocked arenas. Each keeps its own upgrades.']
   },
   {
     id: 'playoffs', icon: '🏆', title: 'The Playoffs', tab: 'playoffs', after: 'office',

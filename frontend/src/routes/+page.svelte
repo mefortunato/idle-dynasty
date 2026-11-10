@@ -77,7 +77,7 @@
 
 {#if game.offline}
   <Modal title="Welcome back, Coach!" onClose={() => (game.offline = null)}>
-    <p class="muted">Your teams kept playing for <b>{fmtTime(game.offline.ms)}</b>.</p>
+    <p class="muted">Your active arena kept playing for <b>{fmtTime(game.offline.ms)}</b>.</p>
     <div class="earn">
       <div><span class="display gold">💵 {fmt(game.offline.cash)}</span><span class="small muted">Cash</span></div>
       <div><span class="display">📣 {fmt(game.offline.fans)}</span><span class="small muted">Fans</span></div>

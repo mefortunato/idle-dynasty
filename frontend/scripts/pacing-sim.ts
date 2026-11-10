@@ -20,11 +20,11 @@ while (t < END) {
   s.boosts = s.boosts.filter(b => b.expiresAt > now);
   for (const f of checkUnlocks(s)) events.push(`${H(t)} unlock feature ${f.id}`);
   // venue
-  const nv = A.nextVenue(s); if (nv && s.cash > SPORT_DEFS[nv].unlockCost) { A.unlockVenue(s, nv); events.push(`${H(t)} unlock ${nv}`); }
+  const nv = A.nextVenue(s); if (nv && s.cash > SPORT_DEFS[nv].unlockCost) { A.unlockVenue(s, nv); A.switchVenue(s, nv, now); events.push(`${H(t)} unlock ${nv}`); }
   // greedy: cheapest facility
   for (let i = 0; i < 50; i++) {
     let best: any = null;
-    for (const sp of s.venuesUnlocked) for (const f of FACILITIES) { if (f.max && (s.facilities[sp][f.id]??0) >= f.max) continue; const c = A.facilityCost(s, sp, f.id); if (!best || c < best.c) best = { sp, id: f.id, c }; }
+    for (const sp of [s.activeVenue]) for (const f of FACILITIES) { if (f.max && (s.facilities[sp][f.id]??0) >= f.max) continue; const c = A.facilityCost(s, sp, f.id); if (!best || c < best.c) best = { sp, id: f.id, c }; }
     if (!best || best.c > s.cash) break; A.buyFacility(s, best.sp, best.id);
   }
   for (const c of COACHING) A.buyCoaching(s, c.id);

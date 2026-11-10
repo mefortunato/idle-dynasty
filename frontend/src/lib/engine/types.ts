@@ -77,6 +77,10 @@ export interface GameState {
   bestTier: number; // highest tier ever won
   readiness: number; // 0..1 playoff readiness
   venuesUnlocked: Sport[];
+  /** Only this venue runs; other unlocked venues keep their upgrades. */
+  activeVenue: Sport;
+  /** Shared quick-play cooldown, persisted across switching and reloads. */
+  arenaBonusReadyAt: number;
   facilities: Record<Sport, Record<string, number>>;
   coaching: Record<string, number>;
   mutator: string | null;
