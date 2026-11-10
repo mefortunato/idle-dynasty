@@ -154,7 +154,7 @@ export function venueStats(s: GameState, sport: Sport, now: number): VenueStats 
 }
 
 export function totalCps(s: GameState, now: number): number {
-  return s.venuesUnlocked.reduce((acc, sp) => acc + venueStats(s, sp, now).cps, 0);
+  return venueStats(s, s.activeVenue, now).cps;
 }
 
 // ───────────────────────── Fans ─────────────────────────
@@ -175,7 +175,7 @@ export function fanMult(s: GameState, now: number): number {
 /** Fans earned per second from winning idle sim games. Grows with cash/sec^0.45. */
 export function fansPerSec(s: GameState, now: number): number {
   const cps = totalCps(s, now);
-  return 0.04 * Math.pow(Math.max(cps, 1), 0.45) * s.venuesUnlocked.length ** 0.5 * fanMult(s, now);
+  return 0.04 * Math.pow(Math.max(cps, 1), 0.45) * fanMult(s, now);
 }
 
 // ───────────────────────── Offline ─────────────────────────

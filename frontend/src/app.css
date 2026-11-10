@@ -35,6 +35,7 @@ button {
 }
 button:active:not(:disabled) { transform: scale(0.97); }
 button:disabled { opacity: 0.45; cursor: default; }
+button:focus-visible { outline: 2px solid #f3d295; outline-offset: 3px; }
 button.primary { background: linear-gradient(180deg, #ffcd5e, #e8a224); color: #1a1205; font-weight: 700; }
 button.green { background: linear-gradient(180deg, #5ee69a, #22b45f); color: #052012; font-weight: 700; }
 button.danger { background: linear-gradient(180deg, #ff8f8f, #e04848); color: #200505; font-weight: 700; }
