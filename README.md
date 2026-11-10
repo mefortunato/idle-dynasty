@@ -28,6 +28,24 @@ docs/DEPLOY.md      one-time GCP setup
 
 ## Local development
 
+Install Node.js 22+ (with npm) and [uv](https://docs.astral.sh/uv/getting-started/installation/), then run from the repository root:
+
+```bash
+./dev.sh
+```
+
+The script syncs backend dependencies from `uv.lock`, installs frontend dependencies with `npm ci` on the first run, and starts both servers with live reload. Open **http://localhost:5173** for the app or **http://localhost:8080/docs** for the API. Both servers log to the terminal; **Ctrl+C stops both**, and either server exiting also stops the other. Without `MONGODB_URI`, the backend uses its in-memory store.
+
+To use different ports (the frontend's `/api` proxy follows the backend port automatically):
+
+```bash
+BACKEND_PORT=8081 FRONTEND_PORT=5174 ./dev.sh
+```
+
+Servers bind to `0.0.0.0` for access through development environment previews. Dependency caches stay in the ignored `.cache/` directory unless `UV_CACHE_DIR` or npm's cache setting is already configured. You can also invoke the script by its full path from another directory.
+
+To run the servers separately:
+
 Backend (in-memory store when `MONGODB_URI` is unset):
 
 ```bash
